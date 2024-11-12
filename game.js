@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { VRButton } from 'three/addons/webxr/VRButton.js';
+import { ARButton } from 'three/addons/webxr/ARButton.js';
 import { XRHandModelFactory } from 'three/addons/webxr/XRHandModelFactory.js';
 
 let camera, scene, renderer, video;
@@ -18,13 +18,18 @@ function init() {
     camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
     
     // Set up WebXR-compatible renderer
-    renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer = new THREE.WebGLRenderer({ 
+        antialias: true,
+        alpha: true
+    });
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.xr.enabled = true;
     document.body.appendChild(renderer.domElement);
 
-    // Add VR button
-    document.body.appendChild(VRButton.createButton(renderer));
+    // Add AR button
+    document.body.appendChild(ARButton.createButton(renderer, {
+        requiredFeatures: ['hit-test']
+    }));
 
     // Set up controllers
     controller1 = renderer.xr.getController(0);
@@ -57,63 +62,37 @@ function init() {
     }
 
     // Add lights
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
-    scene.add(ambientLight);
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
-    directionalLight.position.set(0, 1, 0);
-    scene.add(directionalLight);
+    const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
+    scene.add(light);
 
     camera.position.z = 3;
-
-    // Initialize environment
-    setupEnvironment();
-}
-
-// Set up the VR environment
-function setupEnvironment() {
-    // Add a simple ground plane
-    const groundGeometry = new THREE.PlaneGeometry(20, 20);
-    const groundMaterial = new THREE.MeshStandardMaterial({ 
-        color: 0x808080,
-        roughness: 0.8,
-        metalness: 0.2
-    });
-    const ground = new THREE.Mesh(groundGeometry, groundMaterial);
-    ground.rotation.x = -Math.PI / 2;
-    ground.position.y = -2;
-    scene.add(ground);
-
-    // Add some distant environment elements
-    const envGeometry = new THREE.BoxGeometry(1, 1, 1);
-    const envMaterial = new THREE.MeshStandardMaterial({ color: 0x4488ff });
-    for (let i = 0; i < 10; i++) {
-        const cube = new THREE.Mesh(envGeometry, envMaterial);
-        cube.position.set(
-            (Math.random() - 0.5) * 20,
-            Math.random() * 3,
-            (Math.random() - 0.5) * 20
-        );
-        scene.add(cube);
-    }
 }
 
 // Create a new ball
 function createBall() {
     const geometry = new THREE.SphereGeometry(0.05, 32, 32);
-    const material = new THREE.MeshPhongMaterial({ color: Math.random() * 0xffffff });
+    const material = new THREE.MeshPhongMaterial({ 
+        color: Math.random() * 0xffffff,
+        opacity: 0.8,
+        transparent: true
+    });
     const ball = new THREE.Mesh(geometry, material);
     
-    // Random position in front of player
-    ball.position.x = (Math.random() - 0.5) * 2;
-    ball.position.y = 1 + (Math.random() - 0.5);
-    ball.position.z = -3;
+    // Get camera position and direction for spawning
+    const cameraPosition = new THREE.Vector3();
+    camera.getWorldPosition(cameraPosition);
     
-    // Random velocity towards player
-    ball.velocity = new THREE.Vector3(
-        (Math.random() - 0.5) * 0.05,
-        (Math.random() - 0.5) * 0.05,
-        0.05
+    // Spawn balls in front of where camera is looking
+    ball.position.set(
+        cameraPosition.x + (Math.random() - 0.5),
+        cameraPosition.y + (Math.random() - 0.5),
+        cameraPosition.z - 2
     );
+    
+    // Adjust velocity to move towards player
+    const direction = new THREE.Vector3();
+    direction.subVectors(cameraPosition, ball.position).normalize();
+    ball.velocity = direction.multiplyScalar(0.05);
     
     scene.add(ball);
     balls.push(ball);
@@ -166,14 +145,19 @@ function checkBallCollisions(collider) {
 
 // Modified animation loop for WebXR
 function animate() {
-    renderer.setAnimationLoop((time, frame) => {
-        // Spawn new balls randomly
-        if (Math.random() < 0.02) {
-            createBall();
+    renderer.setAnimationLoop((timestamp, frame) => {
+        if (frame) {
+            const referenceSpace = renderer.xr.getReferenceSpace();
+            const session = renderer.xr.getSession();
+
+            // Only spawn balls when in AR session
+            if (session && Math.random() < 0.02) {
+                createBall();
+            }
         }
         
         updateBalls();
-        updateParticles(1/60); // Assuming 60fps
+        updateParticles(1/60);
         checkControllerCollisions();
         
         renderer.render(scene, camera);
@@ -258,17 +242,4 @@ window.addEventListener('resize', () => {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
-
-    // Update video plane size if it exists
-    if (scene.children.length > 0) {
-        const videoPlane = scene.children.find(child => child.geometry instanceof THREE.PlaneGeometry);
-        if (videoPlane) {
-            const distance = Math.abs(camera.position.z - (-3));
-            const vFov = camera.fov * Math.PI / 180;
-            const height = 2 * Math.tan(vFov / 2) * distance;
-            const width = height * (window.innerWidth / window.innerHeight);
-            
-            videoPlane.geometry = new THREE.PlaneGeometry(width, height);
-        }
-    }
 }); 
