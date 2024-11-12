@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>AR Ball Catch Game</title>
+    <title>VR Ball Catch Game</title>
     <style>
         body { margin: 0; }
         canvas { display: block; }
@@ -18,9 +18,14 @@
 </head>
 <body>
     <div id="score">Score: 0</div>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1646424915/hands.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
-    <script src="game.js"></script>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+    <script type="module" src="game.js"></script>
 </body>
 </html> 
